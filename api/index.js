@@ -6,15 +6,20 @@ const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 
 app.use(express.urlencoded({ extended: true }));
 
-// ====================
-// MULTER (UPLOAD FILE)
-// ====================
+// Buat folder uploads jika belum ada
+if (!fs.existsSync("uploads")) {
+  fs.mkdirSync("uploads");
+}
 
+app.use("/uploads", express.static("uploads"));
+
+// Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "uploads/");
@@ -26,12 +31,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-app.use("/uploads", express.static("uploads"));
-
-// ====================
-// SESSION
-// ====================
-
+// Session
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -40,20 +40,12 @@ app.use(
   })
 );
 
-// ====================
-// PASSPORT
-// ====================
-
+// Passport
 app.use(passport.initialize());
 app.use(passport.session());
 
-passport.serializeUser((user, done) => {
-  done(null, user);
-});
-
-passport.deserializeUser((user, done) => {
-  done(null, user);
-});
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
 
 passport.use(
   new GoogleStrategy(
@@ -68,10 +60,7 @@ passport.use(
   )
 );
 
-// ====================
-// LOGIN GOOGLE
-// ====================
-
+// Login Google
 app.get(
   "/auth/google",
   passport.authenticate("google", {
@@ -89,220 +78,143 @@ app.get(
   }
 );
 
-// ====================
-// MIDDLEWARE LOGIN
-// ====================
-
+// Middleware login
 function isLoggedIn(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   }
-
   res.redirect("/");
 }
 
-// ====================
-// HOME
-// ====================
-
+// Home
 app.get("/", (req, res) => {
   res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Login Google</title>
-
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-
-<body class="bg-light">
-
-<div class="container mt-5">
-
-  <div class="card shadow mx-auto" style="max-width:500px;">
-    <div class="card-body text-center">
-
-      <h1 class="mb-4">Google OAuth Login</h1>
-
-      <a href="/auth/google" class="btn btn-primary">
-        Login dengan Google
-      </a>
-
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>Google Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-light">
+    <div class="container mt-5">
+      <div class="card shadow mx-auto" style="max-width:500px">
+        <div class="card-body text-center">
+          <h1>Google OAuth Login</h1>
+          <a href="/auth/google" class="btn btn-primary mt-3">
+            Login dengan Google
+          </a>
+        </div>
+      </div>
     </div>
-  </div>
-
-</div>
-
-</body>
-</html>
-`);
+  </body>
+  </html>
+  `);
 });
 
-// ====================
-// DASHBOARD
-// ====================
-
+// Dashboard
 app.get("/dashboard", isLoggedIn, (req, res) => {
   res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Dashboard</title>
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-light">
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
+    <div class="container mt-5">
+      <div class="card shadow">
+        <div class="card-body">
 
-<body class="bg-light">
+          <h1 class="text-center">Dashboard</h1>
 
-<div class="container mt-5">
+          <div class="text-center mt-3">
+            <img
+              src="${req.user.photos?.[0]?.value || "https://via.placeholder.com/120"}"
+              class="rounded-circle border"
+              width="120"
+              height="120"
+            >
+          </div>
 
-  <div class="card shadow">
-    <div class="card-body">
+          <hr>
 
-      <h1 class="text-center mb-4">
-        Dashboard
-      </h1>
+          <p><strong>Nama:</strong> ${req.user.displayName}</p>
 
-      <div class="text-center">
+          <p><strong>Email:</strong> ${
+            req.user.emails?.[0]?.value || "-"
+          }</p>
 
-        <img
-          src="${req.user.photos?.[0]?.value || "https://via.placeholder.com/120"}"
-          width="120"
-          height="120"
-          class="rounded-circle border"
-        >
+          <hr>
 
+          <h4>Upload File</h4>
+
+          <form action="/upload" method="POST" enctype="multipart/form-data">
+            <input
+              type="file"
+              name="file"
+              class="form-control mb-3"
+              required
+            >
+
+            <button
+              type="submit"
+              class="btn btn-success"
+            >
+              Upload
+            </button>
+          </form>
+
+          <hr>
+
+          <a href="/logout" class="btn btn-danger">
+            Logout
+          </a>
+
+        </div>
       </div>
-
-      <hr>
-
-      <p>
-        <strong>Nama:</strong>
-        ${req.user.displayName}
-      </p>
-
-      <p>
-        <strong>Email:</strong>
-        ${req.user.emails[0].value}
-      </p>
-
-      <hr>
-
-      <h4>Upload File</h4>
-
-      <form
-        action="/upload"
-        method="POST"
-        enctype="multipart/form-data"
-      >
-
-        <input
-          type="file"
-          name="file"
-          class="form-control mb-3"
-          required
-        >
-
-        <button
-          type="submit"
-          class="btn btn-success"
-        >
-          Upload
-        </button>
-
-      </form>
-
-      <hr>
-
-      <a
-        href="/logout"
-        class="btn btn-danger"
-      >
-        Logout
-      </a>
-
     </div>
-  </div>
 
-</div>
-
-</body>
-</html>
-`);
+  </body>
+  </html>
+  `);
 });
 
-// ====================
-// UPLOAD FILE
-// ====================
-
+// Upload
 app.post(
   "/upload",
   isLoggedIn,
   upload.single("file"),
   (req, res) => {
     res.send(`
-<!DOCTYPE html>
-<html>
-<head>
+      <h2>Upload Berhasil 🎉</h2>
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+      <p>Nama File:</p>
+      <p>${req.file.filename}</p>
 
-</head>
+      <a href="/uploads/${req.file.filename}" target="_blank">
+        Lihat File
+      </a>
 
-<body class="bg-light">
+      <br><br>
 
-<div class="container mt-5">
-
-<div class="card shadow">
-<div class="card-body">
-
-<h2>Upload Berhasil 🎉</h2>
-
-<p>
-Nama File:
-<strong>${req.file.filename}</strong>
-</p>
-
-<a
-  href="/uploads/${req.file.filename}"
-  target="_blank"
-  class="btn btn-primary"
->
-  Lihat File
-</a>
-
-<a
-  href="/dashboard"
-  class="btn btn-secondary"
->
-  Kembali
-</a>
-
-</div>
-</div>
-
-</div>
-
-</body>
-</html>
-`);
+      <a href="/dashboard">
+        Kembali ke Dashboard
+      </a>
+    `);
   }
 );
 
-// ====================
-// LOGOUT
-// ====================
-
+// Logout
 app.get("/logout", (req, res) => {
   req.logout(() => {
     res.redirect("/");
   });
 });
 
-// ====================
-// SERVER
-// ====================
+// Server
+const PORT = process.env.PORT || 3000;
 
-app.listen(3000, () => {
-  console.log("Server jalan di http://localhost:3000");
+app.listen(PORT, () => {
+  console.log(`Server jalan di port ${PORT}`);
 });
